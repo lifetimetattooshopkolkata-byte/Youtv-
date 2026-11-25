@@ -1,0 +1,32 @@
+{
+  "name": "youtv-admit-backend",
+  "version": "1.0.0",
+  "description": "Secure Cloud Run backend for YouTV & ADMIT (Firebase Admin, Owner Verification, Cloud Transcoder API, Storage Cleanup)",
+  "type": "module",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "tsx watch src/index.ts",
+    "bootstrap-owner": "tsx src/scripts/bootstrapOwner.ts",
+    "test": "node --test dist/tests/*.test.js"
+  },
+  "dependencies": {
+    "@google-cloud/storage": "^7.16.0",
+    "@google-cloud/video-transcoder": "^4.4.0",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "express-rate-limit": "^7.5.0",
+    "firebase-admin": "^13.2.0",
+    "helmet": "^8.1.0",
+    "zod": "^3.24.2"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.17",
+    "@types/express": "^5.0.0",
+    "@types/node": "^22.13.4",
+    "tsx": "^4.19.3",
+    "typescript": "^5.8.2"
+  }
+}

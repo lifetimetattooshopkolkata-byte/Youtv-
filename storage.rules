@@ -1,0 +1,67 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidImage() {
+      return request.resource != null &&
+             request.resource.size > 0 &&
+             request.resource.size <= 10 * 1024 * 1024 &&
+             request.resource.contentType.matches('image/(jpeg|png|webp)');
+    }
+
+    function isValidVideoUpload() {
+      return request.resource != null &&
+             request.resource.size > 0 &&
+             request.resource.size <= 512 * 1024 * 1024 &&
+             request.resource.contentType.matches('video/(mp4|webm|quicktime|x-matroska)');
+    }
+
+    // 1. Original uploads: private to uploader and backend service account only
+    match /uploads/original/{userId}/{videoId}/{fileName} {
+      allow read: if isOwner(userId);
+      allow create, update: if isOwner(userId) && isValidVideoUpload();
+      allow delete: if isOwner(userId);
+    }
+
+    // 2. Processed HLS/MP4 outputs: written by Cloud Transcoder / backend, readable by authenticated users
+    match /processed/{videoId}/{allPaths=**} {
+      allow read: if isSignedIn();
+      allow write: if false;
+    }
+
+    // 3. Video thumbnails
+    match /thumbnails/{userId}/{videoId}/{fileName} {
+      allow read: if isSignedIn();
+      allow create, update: if isOwner(userId) && isValidImage();
+      allow delete: if isOwner(userId);
+    }
+
+    // 4. Channel profile & cover images
+    match /channels/{userId}/{channelId}/{fileName} {
+      allow read: if isSignedIn();
+      allow create, update: if isOwner(userId) && isValidImage();
+      allow delete: if isOwner(userId);
+    }
+
+    // 5. User avatars
+    match /avatars/{userId}/{fileName} {
+      allow read: if isSignedIn();
+      allow create, update: if isOwner(userId) && isValidImage();
+      allow delete: if isOwner(userId);
+    }
+
+    // 6. Signed Android APK distribution builds (written by Cloud Build / backend Admin SDK only)
+    match /releases/apk/{releaseId}/{fileName} {
+      allow read: if isSignedIn();
+      allow write: if false;
+    }
+  }
+}

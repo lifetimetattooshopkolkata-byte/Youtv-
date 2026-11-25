@@ -1,0 +1,397 @@
+{
+  "entities": {
+    "AdminRecord": {
+      "title": "AdminRecord",
+      "description": "Server-bootstrapped platform owner authorization record.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "email": { "type": "string" },
+        "role": { "type": "string", "enum": ["OWNER"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "email", "role", "createdAt"]
+    },
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "YouTV user account profile with PII isolation, language preference, and moderation status.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "displayName": { "type": "string" },
+        "email": { "type": "string" },
+        "photoUrl": { "type": "string" },
+        "preferredLanguage": { "type": "string", "enum": ["en", "bn", "hi"] },
+        "status": { "type": "string", "enum": ["active", "suspended", "blocked", "deletion_requested"] },
+        "uploadDisabled": { "type": "boolean" },
+        "restrictedMode": { "type": "boolean" },
+        "emailVerified": { "type": "boolean" },
+        "storageUsedBytes": { "type": "integer" },
+        "moderationReason": { "type": "string" },
+        "moderatedBy": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "displayName", "email", "preferredLanguage", "status", "uploadDisabled", "restrictedMode", "emailVerified", "storageUsedBytes", "createdAt", "updatedAt"]
+    },
+    "Channel": {
+      "title": "Channel",
+      "description": "Creator channel belonging to a user.",
+      "type": "object",
+      "properties": {
+        "ownerId": { "type": "string" },
+        "name": { "type": "string" },
+        "handle": { "type": "string" },
+        "description": { "type": "string" },
+        "avatarUrl": { "type": "string" },
+        "coverUrl": { "type": "string" },
+        "subscriberCount": { "type": "integer" },
+        "videoCount": { "type": "integer" },
+        "totalViews": { "type": "integer" },
+        "status": { "type": "string", "enum": ["active", "suspended"] },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["ownerId", "name", "handle", "description", "subscriberCount", "videoCount", "totalViews", "status", "createdAt", "updatedAt"]
+    },
+    "Video": {
+      "title": "Video",
+      "description": "Uploaded or transcoded video metadata.",
+      "type": "object",
+      "properties": {
+        "ownerId": { "type": "string" },
+        "channelId": { "type": "string" },
+        "channelName": { "type": "string" },
+        "channelHandle": { "type": "string" },
+        "channelAvatarUrl": { "type": "string" },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "thumbnailUrl": { "type": "string" },
+        "playbackUrl": { "type": "string" },
+        "hlsManifestUrl": { "type": "string" },
+        "captionsUrl": { "type": "string" },
+        "category": { "type": "string" },
+        "tags": { "type": "array" },
+        "language": { "type": "string", "enum": ["en", "bn", "hi"] },
+        "visibility": { "type": "string", "enum": ["PUBLIC", "PRIVATE", "UNLISTED"] },
+        "processingStatus": { "type": "string", "enum": ["UPLOADING", "QUEUED", "TRANSCODING", "READY", "FAILED", "FALLBACK_DIRECT"] },
+        "moderationStatus": { "type": "string", "enum": ["ACTIVE", "BLOCKED", "REMOVED"] },
+        "shortForm": { "type": "boolean" },
+        "ageRestricted": { "type": "boolean" },
+        "durationSec": { "type": "integer" },
+        "fileSizeBytes": { "type": "integer" },
+        "viewCount": { "type": "integer" },
+        "likeCount": { "type": "integer" },
+        "dislikeCount": { "type": "integer" },
+        "commentCount": { "type": "integer" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["ownerId", "channelId", "channelName", "channelHandle", "title", "description", "playbackUrl", "category", "tags", "language", "visibility", "processingStatus", "moderationStatus", "shortForm", "ageRestricted", "durationSec", "fileSizeBytes", "viewCount", "likeCount", "dislikeCount", "commentCount", "createdAt", "updatedAt"]
+    },
+    "ShortVideo": {
+      "title": "ShortVideo",
+      "description": "Vertical short-form video entry.",
+      "type": "object",
+      "properties": {
+        "ownerId": { "type": "string" },
+        "channelId": { "type": "string" },
+        "channelName": { "type": "string" },
+        "channelAvatarUrl": { "type": "string" },
+        "title": { "type": "string" },
+        "videoUrl": { "type": "string" },
+        "thumbnailUrl": { "type": "string" },
+        "language": { "type": "string", "enum": ["en", "bn", "hi"] },
+        "visibility": { "type": "string", "enum": ["PUBLIC", "PRIVATE", "UNLISTED"] },
+        "moderationStatus": { "type": "string", "enum": ["ACTIVE", "BLOCKED", "REMOVED"] },
+        "durationSec": { "type": "integer" },
+        "viewCount": { "type": "integer" },
+        "likeCount": { "type": "integer" },
+        "commentCount": { "type": "integer" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["ownerId", "channelId", "channelName", "title", "videoUrl", "language", "visibility", "moderationStatus", "durationSec", "viewCount", "likeCount", "commentCount", "createdAt", "updatedAt"]
+    },
+    "Comment": {
+      "title": "Comment",
+      "description": "Video comment or reply with moderation state.",
+      "type": "object",
+      "properties": {
+        "videoId": { "type": "string" },
+        "authorId": { "type": "string" },
+        "authorName": { "type": "string" },
+        "authorAvatarUrl": { "type": "string" },
+        "videoOwnerId": { "type": "string" },
+        "parentCommentId": { "type": "string" },
+        "text": { "type": "string" },
+        "moderationStatus": { "type": "string", "enum": ["ACTIVE", "HIDDEN", "REMOVED"] },
+        "likeCount": { "type": "integer" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["videoId", "authorId", "authorName", "videoOwnerId", "text", "moderationStatus", "likeCount", "createdAt", "updatedAt"]
+    },
+    "LikeReaction": {
+      "title": "LikeReaction",
+      "description": "Deterministic per-user video like or dislike record.",
+      "type": "object",
+      "properties": {
+        "videoId": { "type": "string" },
+        "userId": { "type": "string" },
+        "reaction": { "type": "string", "enum": ["LIKE", "DISLIKE"] },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["videoId", "userId", "reaction", "createdAt", "updatedAt"]
+    },
+    "Subscription": {
+      "title": "Subscription",
+      "description": "Deterministic per-user channel subscription.",
+      "type": "object",
+      "properties": {
+        "channelId": { "type": "string" },
+        "channelName": { "type": "string" },
+        "channelAvatarUrl": { "type": "string" },
+        "subscriberId": { "type": "string" },
+        "channelOwnerId": { "type": "string" },
+        "notificationsEnabled": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["channelId", "channelName", "subscriberId", "channelOwnerId", "notificationsEnabled", "createdAt"]
+    },
+    "Playlist": {
+      "title": "Playlist",
+      "description": "User playlist including Watch Later.",
+      "type": "object",
+      "properties": {
+        "ownerId": { "type": "string" },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "visibility": { "type": "string", "enum": ["PUBLIC", "PRIVATE"] },
+        "playlistType": { "type": "string", "enum": ["CUSTOM", "WATCH_LATER"] },
+        "videoIds": { "type": "array" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["ownerId", "title", "description", "visibility", "playlistType", "videoIds", "createdAt", "updatedAt"]
+    },
+    "WatchHistoryEntry": {
+      "title": "WatchHistoryEntry",
+      "description": "Per-user video playback history record.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "videoId": { "type": "string" },
+        "videoTitle": { "type": "string" },
+        "thumbnailUrl": { "type": "string" },
+        "channelName": { "type": "string" },
+        "progressSec": { "type": "integer" },
+        "durationSec": { "type": "integer" },
+        "watchedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "videoId", "videoTitle", "channelName", "progressSec", "durationSec", "watchedAt"]
+    },
+    "SearchHistoryEntry": {
+      "title": "SearchHistoryEntry",
+      "description": "Per-user search history entry.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "query": { "type": "string" },
+        "searchedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "query", "searchedAt"]
+    },
+    "NotificationItem": {
+      "title": "NotificationItem",
+      "description": "User notification item.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "title": { "type": "string" },
+        "body": { "type": "string" },
+        "notificationType": { "type": "string", "enum": ["NEW_VIDEO", "COMMENT", "MODERATION", "SYSTEM"] },
+        "targetVideoId": { "type": "string" },
+        "readFlag": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "title", "body", "notificationType", "readFlag", "createdAt"]
+    },
+    "Report": {
+      "title": "Report",
+      "description": "Content, user, copyright, or appeal report.",
+      "type": "object",
+      "properties": {
+        "reporterId": { "type": "string" },
+        "targetType": { "type": "string", "enum": ["VIDEO", "USER", "COMMENT", "COPYRIGHT", "APPEAL"] },
+        "targetId": { "type": "string" },
+        "targetOwnerId": { "type": "string" },
+        "reason": { "type": "string" },
+        "details": { "type": "string" },
+        "copyrightWorkUrl": { "type": "string" },
+        "status": { "type": "string", "enum": ["OPEN", "UNDER_REVIEW", "RESOLVED", "DISMISSED"] },
+        "resolutionNote": { "type": "string" },
+        "resolvedBy": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["reporterId", "targetType", "targetId", "reason", "details", "status", "createdAt", "updatedAt"]
+    },
+    "ModerationAction": {
+      "title": "ModerationAction",
+      "description": "Immutable owner moderation action log.",
+      "type": "object",
+      "properties": {
+        "adminUid": { "type": "string" },
+        "adminEmail": { "type": "string" },
+        "actionType": { "type": "string" },
+        "targetType": { "type": "string" },
+        "targetId": { "type": "string" },
+        "reason": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["adminUid", "adminEmail", "actionType", "targetType", "targetId", "reason", "createdAt"]
+    },
+    "AuditLog": {
+      "title": "AuditLog",
+      "description": "Immutable platform audit log.",
+      "type": "object",
+      "properties": {
+        "actorUid": { "type": "string" },
+        "action": { "type": "string" },
+        "targetType": { "type": "string" },
+        "targetId": { "type": "string" },
+        "result": { "type": "string", "enum": ["SUCCESS", "DENIED", "FAILED"] },
+        "summary": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["actorUid", "action", "targetType", "targetId", "result", "summary", "createdAt"]
+    },
+    "PlatformSettings": {
+      "title": "PlatformSettings",
+      "description": "Owner-controlled global platform configuration.",
+      "type": "object",
+      "properties": {
+        "registrationsEnabled": { "type": "boolean" },
+        "uploadsEnabled": { "type": "boolean" },
+        "maintenanceMode": { "type": "boolean" },
+        "maxUploadSizeMb": { "type": "integer" },
+        "dailyUploadLimit": { "type": "integer" },
+        "allowedFormats": { "type": "array" },
+        "categories": { "type": "array" },
+        "supportedLanguages": { "type": "array" },
+        "autoFlagKeywords": { "type": "array" },
+        "notificationsEnabled": { "type": "boolean" },
+        "transcoderConfigured": { "type": "boolean" },
+        "totalStorageQuotaMb": { "type": "integer" },
+        "updatedBy": { "type": "string" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["registrationsEnabled", "uploadsEnabled", "maintenanceMode", "maxUploadSizeMb", "dailyUploadLimit", "allowedFormats", "categories", "supportedLanguages", "autoFlagKeywords", "notificationsEnabled", "transcoderConfigured", "totalStorageQuotaMb", "updatedAt"]
+    },
+    "VideoProcessingJob": {
+      "title": "VideoProcessingJob",
+      "description": "Transcoding / upload processing job status.",
+      "type": "object",
+      "properties": {
+        "videoId": { "type": "string" },
+        "ownerId": { "type": "string" },
+        "inputPath": { "type": "string" },
+        "outputManifestPath": { "type": "string" },
+        "status": { "type": "string", "enum": ["QUEUED", "TRANSCODING", "READY", "FAILED", "FALLBACK_DIRECT"] },
+        "progressPercent": { "type": "integer" },
+        "errorMessage": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["videoId", "ownerId", "inputPath", "status", "progressPercent", "createdAt", "updatedAt"]
+    },
+    "BlockedUser": {
+      "title": "BlockedUser",
+      "description": "Per-user creator/commenter block entry.",
+      "type": "object",
+      "properties": {
+        "blockerId": { "type": "string" },
+        "blockedUserId": { "type": "string" },
+        "blockedUserName": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["blockerId", "blockedUserId", "blockedUserName", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/admins/{userId}": {
+      "schema": { "$ref": "#/entities/AdminRecord" },
+      "description": "Owner-only admin verification documents managed exclusively via Admin SDK."
+    },
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/UserProfile" },
+      "description": "Private user account profiles."
+    },
+    "/channels/{channelId}": {
+      "schema": { "$ref": "#/entities/Channel" },
+      "description": "Public creator channels."
+    },
+    "/videos/{videoId}": {
+      "schema": { "$ref": "#/entities/Video" },
+      "description": "Videos catalog with visibility, processing, and moderation status."
+    },
+    "/shorts/{shortId}": {
+      "schema": { "$ref": "#/entities/ShortVideo" },
+      "description": "Vertical short-form videos."
+    },
+    "/comments/{commentId}": {
+      "schema": { "$ref": "#/entities/Comment" },
+      "description": "Video comments and threaded replies."
+    },
+    "/likes/{likeId}": {
+      "schema": { "$ref": "#/entities/LikeReaction" },
+      "description": "Per-user deterministic like/dislike reactions."
+    },
+    "/subscriptions/{subscriptionId}": {
+      "schema": { "$ref": "#/entities/Subscription" },
+      "description": "Per-user deterministic channel subscriptions."
+    },
+    "/playlists/{playlistId}": {
+      "schema": { "$ref": "#/entities/Playlist" },
+      "description": "User playlists and Watch Later."
+    },
+    "/watchHistory/{entryId}": {
+      "schema": { "$ref": "#/entities/WatchHistoryEntry" },
+      "description": "User watch history."
+    },
+    "/searchHistory/{entryId}": {
+      "schema": { "$ref": "#/entities/SearchHistoryEntry" },
+      "description": "User search history."
+    },
+    "/notifications/{notificationId}": {
+      "schema": { "$ref": "#/entities/NotificationItem" },
+      "description": "User notifications."
+    },
+    "/reports/{reportId}": {
+      "schema": { "$ref": "#/entities/Report" },
+      "description": "Content, user, copyright, and appeal reports."
+    },
+    "/moderationActions/{actionId}": {
+      "schema": { "$ref": "#/entities/ModerationAction" },
+      "description": "Immutable owner moderation action records."
+    },
+    "/auditLogs/{logId}": {
+      "schema": { "$ref": "#/entities/AuditLog" },
+      "description": "Immutable audit trail."
+    },
+    "/platformSettings/{settingId}": {
+      "schema": { "$ref": "#/entities/PlatformSettings" },
+      "description": "Global platform configuration."
+    },
+    "/videoProcessingJobs/{jobId}": {
+      "schema": { "$ref": "#/entities/VideoProcessingJob" },
+      "description": "Cloud Transcoder and upload processing job statuses."
+    },
+    "/blockedUsers/{blockId}": {
+      "schema": { "$ref": "#/entities/BlockedUser" },
+      "description": "Per-user block list."
+    }
+  }
+}

@@ -1,0 +1,34 @@
+# Google Cloud Build pipeline triggered by DistributionManager.triggerApkBuild()
+steps:
+  - name: "gcr.io/cloud-builders/gradle"
+    id: "Build Signed APK"
+    entrypoint: "bash"
+    args:
+      - "-c"
+      - |
+        gradle :app:assemble${_BUILD_TYPE^} -PversionName="${_VERSION_NAME}" -PversionCode="${_VERSION_CODE}"
+        APK_PATH=$(find app/build/outputs/apk -name "*.apk" | head -n 1)
+        echo "Built APK: $APK_PATH"
+        sha256sum "$APK_PATH" | awk '{print $1}' > /workspace/apk.sha256
+        stat -c%s "$APK_PATH" > /workspace/apk.size
+        cp "$APK_PATH" /workspace/output.apk
+
+  - name: "gcr.io/cloud-builders/gsutil"
+    id: "Upload Signed APK to GCS"
+    args:
+      - "-h"
+      - "Content-Type:application/vnd.android.package-archive"
+      - "cp"
+      - "/workspace/output.apk"
+      - "gs://${_GCS_BUCKET}/${_APK_OBJECT_PATH}"
+
+substitutions:
+  _RELEASE_ID: "rel_manual"
+  _VERSION_NAME: "1.0"
+  _VERSION_CODE: "1"
+  _BUILD_TYPE: "release"
+  _GCS_BUCKET: ""
+  _APK_OBJECT_PATH: "releases/apk/rel_manual/YouTV-ADMIT-v1.0-release.apk"
+
+options:
+  logging: CLOUD_LOGGING_ONLY

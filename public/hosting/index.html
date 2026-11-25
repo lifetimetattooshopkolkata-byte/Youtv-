@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>YouTV &amp; ADMIT — Android APK Download</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #070709;
+      --surface: #111115;
+      --border: #2b2b36;
+      --red: #e50914;
+      --text: #fafafc;
+      --muted: #a1a1b0;
+    }
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+      background: radial-gradient(circle at top, #280508 0%, var(--bg) 60%);
+      color: var(--text);
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      padding: 24px;
+    }
+    .card {
+      max-width: 520px;
+      width: 100%;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 28px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.6);
+    }
+    h1 { margin: 0 0 8px; font-size: 1.75rem; }
+    .slogan { color: var(--red); font-weight: 600; margin-bottom: 16px; }
+    p { color: var(--muted); line-height: 1.5; }
+    .btn {
+      display: inline-block;
+      margin-top: 16px;
+      background: var(--red);
+      color: #fff;
+      text-decoration: none;
+      font-weight: 700;
+      padding: 14px 22px;
+      border-radius: 12px;
+    }
+    code {
+      background: #1b1b22;
+      padding: 2px 6px;
+      border-radius: 6px;
+      font-size: 0.9em;
+    }
+  </style>
+</head>
+<body>
+  <main class="card">
+    <h1>YouTV + ADMIT</h1>
+    <div class="slogan">Watch • Create • Share</div>
+    <p>
+      Download the signed Android APK package directly in Google Chrome. Installing this package adds both
+      <strong>YouTV</strong> and the private owner-only <strong>ADMIT</strong> launcher to your Android device.
+    </p>
+    <p>
+      Place your signed APK at <code>public/hosting/releases/YouTV-ADMIT-latest.apk</code> before running
+      <code>firebase deploy --only hosting</code>, or configure <code>GCS_BUCKET</code> in Cloud Run to serve
+      short-lived signed download URLs.
+    </p>
+    <a class="btn" href="/releases/YouTV-ADMIT-latest.apk" download>Download Signed APK</a>
+  </main>
+</body>
+</html>

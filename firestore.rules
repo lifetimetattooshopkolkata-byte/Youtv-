@@ -1,0 +1,755 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Default deny catch-all
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- GLOBAL HELPERS ---
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function isValidTimestamp(ts) {
+      return ts is timestamp && ts <= request.time;
+    }
+
+    function isAdmin() {
+      return isSignedIn() &&
+        request.auth.token.email_verified == true &&
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid));
+    }
+
+    function isNotSuspended() {
+      return !exists(/databases/$(database)/documents/users/$(request.auth.uid)) ||
+        !(get(/databases/$(database)/documents/users/$(request.auth.uid)).data.status in ['suspended', 'blocked']);
+    }
+
+    function isUploadAllowed() {
+      return !exists(/databases/$(database)/documents/users/$(request.auth.uid)) ||
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.uploadDisabled == false;
+    }
+
+    // --- VALIDATION HELPERS ---
+
+    function isValidUserProfile(data) {
+      return data.userId is string && data.userId.size() >= 1 && data.userId.size() <= 128 &&
+             data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 80 &&
+             data.email is string && data.email.size() >= 3 && data.email.size() <= 200 &&
+             (!('photoUrl' in data) || (data.photoUrl is string && data.photoUrl.size() <= 1000)) &&
+             data.preferredLanguage in ['en', 'bn', 'hi'] &&
+             data.status in ['active', 'suspended', 'blocked', 'deletion_requested'] &&
+             data.uploadDisabled is bool &&
+             data.restrictedMode is bool &&
+             data.emailVerified is bool &&
+             data.storageUsedBytes is int && data.storageUsedBytes >= 0 &&
+             (!('moderationReason' in data) || (data.moderationReason is string && data.moderationReason.size() <= 500)) &&
+             (!('moderatedBy' in data) || (data.moderatedBy is string && data.moderatedBy.size() <= 128)) &&
+             isValidTimestamp(data.createdAt) &&
+             isValidTimestamp(data.updatedAt);
+    }
+
+    function isValidChannel(data) {
+      return data.ownerId is string && data.ownerId.size() >= 1 && data.ownerId.size() <= 128 &&
+             data.name is string && data.name.size() >= 2 && data.name.size() <= 60 &&
+             data.handle is string && data.handle.size() >= 3 && data.handle.size() <= 40 &&
+             data.description is string && data.description.size() <= 500 &&
+             (!('avatarUrl' in data) || (data.avatarUrl is string && data.avatarUrl.size() <= 1000)) &&
+             (!('coverUrl' in data) || (data.coverUrl is string && data.coverUrl.size() <= 1000)) &&
+             data.subscriberCount is int && data.subscriberCount >= 0 &&
+             data.videoCount is int && data.videoCount >= 0 &&
+             data.totalViews is int && data.totalViews >= 0 &&
+             data.status in ['active', 'suspended'] &&
+             isValidTimestamp(data.createdAt) &&
+             isValidTimestamp(data.updatedAt);
+    }
+
+    function isValidVideo(data) {
+      return data.ownerId is string && data.ownerId.size() >= 1 && data.ownerId.size() <= 128 &&
+             data.channelId is string && isValidId(data.channelId) &&
+             data.channelName is string && data.channelName.size() >= 1 && data.channelName.size() <= 60 &&
+             data.channelHandle is string && data.channelHandle.size() >= 1 && data.channelHandle.size() <= 40 &&
+             (!('channelAvatarUrl' in data) || (data.channelAvatarUrl is string && data.channelAvatarUrl.size() <= 1000)) &&
+             data.title is string && data.title.size() >= 1 && data.title.size() <= 120 &&
+             data.description is string && data.description.size() <= 2000 &&
+             (!('thumbnailUrl' in data) || (data.thumbnailUrl is string && data.thumbnailUrl.size() <= 1000)) &&
+             data.playbackUrl is string && data.playbackUrl.size() >= 1 && data.playbackUrl.size() <= 2000 &&
+             (!('hlsManifestUrl' in data) || (data.hlsManifestUrl is string && data.hlsManifestUrl.size() <= 2000)) &&
+             (!('captionsUrl' in data) || (data.captionsUrl is string && data.captionsUrl.size() <= 2000)) &&
+             data.category is string && data.category.size() >= 1 && data.category.size() <= 40 &&
+             data.tags is list && data.tags.size() <= 10 && (data.tags.size() == 0 || data.tags[0] is string) &&
+             data.language in ['en', 'bn', 'hi'] &&
+             data.visibility in ['PUBLIC', 'PRIVATE', 'UNLISTED'] &&
+             data.processingStatus in ['UPLOADING', 'QUEUED', 'TRANSCODING', 'READY', 'FAILED', 'FALLBACK_DIRECT'] &&
+             data.moderationStatus in ['ACTIVE', 'BLOCKED', 'REMOVED'] &&
+             data.shortForm is bool &&
+             data.ageRestricted is bool &&
+             data.durationSec is int && data.durationSec >= 0 &&
+             data.fileSizeBytes is int && data.fileSizeBytes >= 0 &&
+             data.viewCount is int && data.viewCount >= 0 &&
+             data.likeCount is int && data.likeCount >= 0 &&
+             data.dislikeCount is int && data.dislikeCount >= 0 &&
+             data.commentCount is int && data.commentCount >= 0 &&
+             isValidTimestamp(data.createdAt) &&
+             isValidTimestamp(data.updatedAt);
+    }
+
+    function isValidShortVideo(data) {
+      return data.ownerId is string && data.ownerId.size() >= 1 && data.ownerId.size() <= 128 &&
+             data.channelId is string && isValidId(data.channelId) &&
+             data.channelName is string && data.channelName.size() >= 1 && data.channelName.size() <= 60 &&
+             (!('channelAvatarUrl' in data) || (data.channelAvatarUrl is string && data.channelAvatarUrl.size() <= 1000)) &&
+             data.title is string && data.title.size() >= 1 && data.title.size() <= 120 &&
+             data.videoUrl is string && data.videoUrl.size() >= 1 && data.videoUrl.size() <= 2000 &&
+             (!('thumbnailUrl' in data) || (data.thumbnailUrl is string && data.thumbnailUrl.size() <= 1000)) &&
+             data.language in ['en', 'bn', 'hi'] &&
+             data.visibility in ['PUBLIC', 'PRIVATE', 'UNLISTED'] &&
+             data.moderationStatus in ['ACTIVE', 'BLOCKED', 'REMOVED'] &&
+             data.durationSec is int && data.durationSec >= 0 && data.durationSec <= 180 &&
+             data.viewCount is int && data.viewCount >= 0 &&
+             data.likeCount is int && data.likeCount >= 0 &&
+             data.commentCount is int && data.commentCount >= 0 &&
+             isValidTimestamp(data.createdAt) &&
+             isValidTimestamp(data.updatedAt);
+    }
+
+    function isValidComment(data) {
+      return data.videoId is string && isValidId(data.videoId) &&
+             data.authorId is string && data.authorId.size() >= 1 && data.authorId.size() <= 128 &&
+             data.authorName is string && data.authorName.size() >= 1 && data.authorName.size() <= 80 &&
+             (!('authorAvatarUrl' in data) || (data.authorAvatarUrl is string && data.authorAvatarUrl.size() <= 1000)) &&
+             data.videoOwnerId is string && data.videoOwnerId.size() >= 1 && data.videoOwnerId.size() <= 128 &&
+             (!('parentCommentId' in data) || (data.parentCommentId is string && isValidId(data.parentCommentId))) &&
+             data.text is string && data.text.size() >= 1 && data.text.size() <= 1000 &&
+             data.moderationStatus in ['ACTIVE', 'HIDDEN', 'REMOVED'] &&
+             data.likeCount is int && data.likeCount >= 0 &&
+             isValidTimestamp(data.createdAt) &&
+             isValidTimestamp(data.updatedAt);
+    }
+
+    function isValidLike(data) {
+      return data.videoId is string && isValidId(data.videoId) &&
+             data.userId is string && data.userId.size() >= 1 && data.userId.size() <= 128 &&
+             data.reaction in ['LIKE', 'DISLIKE'] &&
+             isValidTimestamp(data.createdAt) &&
+             isValidTimestamp(data.updatedAt);
+    }
+
+    function isValidSubscription(data) {
+      return data.channelId is string && isValidId(data.channelId) &&
+             data.channelName is string && data.channelName.size() >= 1 && data.channelName.size() <= 60 &&
+             (!('channelAvatarUrl' in data) || (data.channelAvatarUrl is string && data.channelAvatarUrl.size() <= 1000)) &&
+             data.subscriberId is string && data.subscriberId.size() >= 1 && data.subscriberId.size() <= 128 &&
+             data.channelOwnerId is string && data.channelOwnerId.size() >= 1 && data.channelOwnerId.size() <= 128 &&
+             data.notificationsEnabled is bool &&
+             isValidTimestamp(data.createdAt);
+    }
+
+    function isValidPlaylist(data) {
+      return data.ownerId is string && data.ownerId.size() >= 1 && data.ownerId.size() <= 128 &&
+             data.title is string && data.title.size() >= 1 && data.title.size() <= 80 &&
+             data.description is string && data.description.size() <= 400 &&
+             data.visibility in ['PUBLIC', 'PRIVATE'] &&
+             data.playlistType in ['CUSTOM', 'WATCH_LATER'] &&
+             data.videoIds is list && data.videoIds.size() <= 200 && (data.videoIds.size() == 0 || data.videoIds[0] is string) &&
+             isValidTimestamp(data.createdAt) &&
+             isValidTimestamp(data.updatedAt);
+    }
+
+    function isValidWatchHistory(data) {
+      return data.userId is string && data.userId.size() >= 1 && data.userId.size() <= 128 &&
+             data.videoId is string && isValidId(data.videoId) &&
+             data.videoTitle is string && data.videoTitle.size() >= 1 && data.videoTitle.size() <= 120 &&
+             (!('thumbnailUrl' in data) || (data.thumbnailUrl is string && data.thumbnailUrl.size() <= 1000)) &&
+             data.channelName is string && data.channelName.size() >= 1 && data.channelName.size() <= 60 &&
+             data.progressSec is int && data.progressSec >= 0 &&
+             data.durationSec is int && data.durationSec >= 0 &&
+             isValidTimestamp(data.watchedAt);
+    }
+
+    function isValidSearchHistory(data) {
+      return data.userId is string && data.userId.size() >= 1 && data.userId.size() <= 128 &&
+             data.query is string && data.query.size() >= 1 && data.query.size() <= 120 &&
+             isValidTimestamp(data.searchedAt);
+    }
+
+    function isValidNotification(data) {
+      return data.userId is string && data.userId.size() >= 1 && data.userId.size() <= 128 &&
+             data.title is string && data.title.size() >= 1 && data.title.size() <= 120 &&
+             data.body is string && data.body.size() >= 1 && data.body.size() <= 500 &&
+             data.notificationType in ['NEW_VIDEO', 'COMMENT', 'MODERATION', 'SYSTEM'] &&
+             (!('targetVideoId' in data) || (data.targetVideoId is string && data.targetVideoId.size() <= 128)) &&
+             data.readFlag is bool &&
+             isValidTimestamp(data.createdAt);
+    }
+
+    function isValidReport(data) {
+      return data.reporterId is string && data.reporterId.size() >= 1 && data.reporterId.size() <= 128 &&
+             data.targetType in ['VIDEO', 'USER', 'COMMENT', 'COPYRIGHT', 'APPEAL'] &&
+             data.targetId is string && data.targetId.size() >= 1 && data.targetId.size() <= 128 &&
+             (!('targetOwnerId' in data) || (data.targetOwnerId is string && data.targetOwnerId.size() <= 128)) &&
+             data.reason is string && data.reason.size() >= 2 && data.reason.size() <= 120 &&
+             data.details is string && data.details.size() <= 1000 &&
+             (!('copyrightWorkUrl' in data) || (data.copyrightWorkUrl is string && data.copyrightWorkUrl.size() <= 1000)) &&
+             data.status in ['OPEN', 'UNDER_REVIEW', 'RESOLVED', 'DISMISSED'] &&
+             (!('resolutionNote' in data) || (data.resolutionNote is string && data.resolutionNote.size() <= 500)) &&
+             (!('resolvedBy' in data) || (data.resolvedBy is string && data.resolvedBy.size() <= 128)) &&
+             isValidTimestamp(data.createdAt) &&
+             isValidTimestamp(data.updatedAt);
+    }
+
+    function isValidModerationAction(data) {
+      return data.adminUid is string && data.adminUid.size() >= 1 && data.adminUid.size() <= 128 &&
+             data.adminEmail is string && data.adminEmail.size() >= 3 && data.adminEmail.size() <= 200 &&
+             data.actionType is string && data.actionType.size() >= 2 && data.actionType.size() <= 50 &&
+             data.targetType in ['USER', 'VIDEO', 'REPORT', 'SETTINGS'] &&
+             data.targetId is string && data.targetId.size() >= 1 && data.targetId.size() <= 128 &&
+             data.reason is string && data.reason.size() >= 2 && data.reason.size() <= 500 &&
+             isValidTimestamp(data.createdAt);
+    }
+
+    function isValidAuditLog(data) {
+      return data.actorUid is string && data.actorUid.size() >= 1 && data.actorUid.size() <= 128 &&
+             data.action is string && data.action.size() >= 2 && data.action.size() <= 50 &&
+             data.targetType is string && data.targetType.size() >= 2 && data.targetType.size() <= 40 &&
+             data.targetId is string && data.targetId.size() >= 1 && data.targetId.size() <= 128 &&
+             data.result in ['SUCCESS', 'DENIED', 'FAILED'] &&
+             data.summary is string && data.summary.size() >= 1 && data.summary.size() <= 400 &&
+             isValidTimestamp(data.createdAt);
+    }
+
+    function isValidPlatformSettings(data) {
+      return data.registrationsEnabled is bool &&
+             data.uploadsEnabled is bool &&
+             data.maintenanceMode is bool &&
+             data.maxUploadSizeMb is int && data.maxUploadSizeMb >= 10 && data.maxUploadSizeMb <= 10240 &&
+             data.dailyUploadLimit is int && data.dailyUploadLimit >= 1 && data.dailyUploadLimit <= 500 &&
+             data.allowedFormats is list && data.allowedFormats.size() <= 10 && (data.allowedFormats.size() == 0 || data.allowedFormats[0] is string) &&
+             data.categories is list && data.categories.size() <= 25 && (data.categories.size() == 0 || data.categories[0] is string) &&
+             data.supportedLanguages is list && data.supportedLanguages.size() <= 10 && (data.supportedLanguages.size() == 0 || data.supportedLanguages[0] is string) &&
+             data.autoFlagKeywords is list && data.autoFlagKeywords.size() <= 50 && (data.autoFlagKeywords.size() == 0 || data.autoFlagKeywords[0] is string) &&
+             data.notificationsEnabled is bool &&
+             data.transcoderConfigured is bool &&
+             data.totalStorageQuotaMb is int && data.totalStorageQuotaMb >= 100 &&
+             (!('updatedBy' in data) || (data.updatedBy is string && data.updatedBy.size() <= 128)) &&
+             isValidTimestamp(data.updatedAt);
+    }
+
+    function isValidProcessingJob(data) {
+      return data.videoId is string && isValidId(data.videoId) &&
+             data.ownerId is string && data.ownerId.size() >= 1 && data.ownerId.size() <= 128 &&
+             data.inputPath is string && data.inputPath.size() >= 1 && data.inputPath.size() <= 1000 &&
+             (!('outputManifestPath' in data) || (data.outputManifestPath is string && data.outputManifestPath.size() <= 1000)) &&
+             data.status in ['QUEUED', 'TRANSCODING', 'READY', 'FAILED', 'FALLBACK_DIRECT'] &&
+             data.progressPercent is int && data.progressPercent >= 0 && data.progressPercent <= 100 &&
+             (!('errorMessage' in data) || (data.errorMessage is string && data.errorMessage.size() <= 500)) &&
+             isValidTimestamp(data.createdAt) &&
+             isValidTimestamp(data.updatedAt);
+    }
+
+    function isValidBlockedUser(data) {
+      return data.blockerId is string && data.blockerId.size() >= 1 && data.blockerId.size() <= 128 &&
+             data.blockedUserId is string && data.blockedUserId.size() >= 1 && data.blockedUserId.size() <= 128 &&
+             data.blockedUserName is string && data.blockedUserName.size() >= 1 && data.blockedUserName.size() <= 80 &&
+             isValidTimestamp(data.createdAt);
+    }
+
+    function isValidAppRelease(data) {
+      return data.releaseId is string && isValidId(data.releaseId) &&
+             data.versionName is string && data.versionName.size() >= 1 && data.versionName.size() <= 40 &&
+             data.versionCode is int && data.versionCode >= 1 &&
+             data.buildType in ['release', 'debug'] &&
+             data.channel in ['production', 'beta'] &&
+             data.fileName is string && data.fileName.size() >= 1 && data.fileName.size() <= 120 &&
+             data.status in ['QUEUED_CLOUD_BUILD', 'SETUP_REQUIRED', 'READY', 'FAILED'] &&
+             data.fileSizeBytes is int && data.fileSizeBytes >= 0 &&
+             data.downloadCount is int && data.downloadCount >= 0 &&
+             data.triggeredBy is string && data.triggeredBy.size() >= 1 && data.triggeredBy.size() <= 128 &&
+             isValidTimestamp(data.createdAt) &&
+             isValidTimestamp(data.updatedAt);
+    }
+
+    // --- COLLECTION RULES ---
+
+    // 1. Admins: server-bootstrapped only (no client writes)
+    match /admins/{userId} {
+      allow get: if isSignedIn() && isValidId(userId) && request.auth.uid == userId;
+      allow list, create, update, delete: if false;
+    }
+
+    // 2. Users: PII isolated to owner or admin
+    match /users/{userId} {
+      allow get: if isSignedIn() && isValidId(userId) && (request.auth.uid == userId || isAdmin());
+      allow list: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+
+      allow create: if isSignedIn() &&
+        isValidId(userId) &&
+        request.auth.uid == userId &&
+        incoming().userId == request.auth.uid &&
+        incoming().status == 'active' &&
+        incoming().uploadDisabled == false &&
+        incoming().storageUsedBytes == 0 &&
+        incoming().keys().hasAll(['userId', 'displayName', 'email', 'preferredLanguage', 'status', 'uploadDisabled', 'restrictedMode', 'emailVerified', 'storageUsedBytes', 'createdAt', 'updatedAt']) &&
+        incoming().keys().hasOnly(['userId', 'displayName', 'email', 'photoUrl', 'preferredLanguage', 'status', 'uploadDisabled', 'restrictedMode', 'emailVerified', 'storageUsedBytes', 'createdAt', 'updatedAt']) &&
+        isValidUserProfile(incoming());
+
+      allow update: if isSignedIn() && isValidId(userId) && isValidUserProfile(incoming()) &&
+        incoming().userId == existing().userId &&
+        incoming().createdAt == existing().createdAt && (
+          isAdmin() ||
+          (
+            request.auth.uid == userId &&
+            incoming().status in [existing().status, 'deletion_requested'] &&
+            incoming().uploadDisabled == existing().uploadDisabled &&
+            incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'photoUrl', 'preferredLanguage', 'restrictedMode', 'emailVerified', 'status', 'storageUsedBytes', 'updatedAt'])
+          )
+        );
+
+      allow delete: if isAdmin();
+    }
+
+    // 3. Channels
+    match /channels/{channelId} {
+      allow get: if isSignedIn() && isValidId(channelId);
+      allow list: if isSignedIn();
+
+      allow create: if isSignedIn() &&
+        isValidId(channelId) &&
+        isValidChannel(incoming()) &&
+        isNotSuspended() &&
+        incoming().ownerId == request.auth.uid &&
+        incoming().status == 'active' &&
+        incoming().subscriberCount == 0 &&
+        incoming().videoCount == 0 &&
+        incoming().totalViews == 0 &&
+        incoming().keys().hasAll(['ownerId', 'name', 'handle', 'description', 'subscriberCount', 'videoCount', 'totalViews', 'status', 'createdAt', 'updatedAt']) &&
+        incoming().keys().hasOnly(['ownerId', 'name', 'handle', 'description', 'avatarUrl', 'coverUrl', 'subscriberCount', 'videoCount', 'totalViews', 'status', 'createdAt', 'updatedAt']);
+
+      allow update: if isSignedIn() && isValidId(channelId) && isValidChannel(incoming()) &&
+        incoming().ownerId == existing().ownerId &&
+        incoming().createdAt == existing().createdAt && (
+          isAdmin() ||
+          (
+            existing().ownerId == request.auth.uid &&
+            isNotSuspended() &&
+            incoming().status == existing().status &&
+            incoming().diff(existing()).affectedKeys().hasOnly(['name', 'handle', 'description', 'avatarUrl', 'coverUrl', 'videoCount', 'updatedAt'])
+          ) ||
+          (
+            isNotSuspended() &&
+            incoming().diff(existing()).affectedKeys().hasOnly(['subscriberCount', 'updatedAt'])
+          ) ||
+          (
+            incoming().diff(existing()).affectedKeys().hasOnly(['totalViews', 'updatedAt'])
+          )
+        );
+
+      allow delete: if isSignedIn() && isValidId(channelId) && (existing().ownerId == request.auth.uid || isAdmin());
+    }
+
+    // 4. Videos
+    match /videos/{videoId} {
+      allow get: if isSignedIn() && isValidId(videoId) && (
+        (existing().visibility in ['PUBLIC', 'UNLISTED'] && existing().moderationStatus == 'ACTIVE') ||
+        existing().ownerId == request.auth.uid ||
+        isAdmin()
+      );
+      allow list: if isSignedIn() && (
+        (resource.data.visibility == 'PUBLIC' && resource.data.moderationStatus == 'ACTIVE') ||
+        resource.data.ownerId == request.auth.uid ||
+        isAdmin()
+      );
+
+      allow create: if isSignedIn() &&
+        isValidId(videoId) &&
+        isValidVideo(incoming()) &&
+        isNotSuspended() &&
+        isUploadAllowed() &&
+        incoming().ownerId == request.auth.uid &&
+        incoming().moderationStatus == 'ACTIVE' &&
+        incoming().viewCount == 0 &&
+        incoming().likeCount == 0 &&
+        incoming().dislikeCount == 0 &&
+        incoming().commentCount == 0 &&
+        exists(/databases/$(database)/documents/channels/$(incoming().channelId)) &&
+        get(/databases/$(database)/documents/channels/$(incoming().channelId)).data.ownerId == request.auth.uid;
+
+      allow update: if isSignedIn() && isValidId(videoId) && isValidVideo(incoming()) &&
+        incoming().ownerId == existing().ownerId &&
+        incoming().channelId == existing().channelId &&
+        incoming().createdAt == existing().createdAt && (
+          isAdmin() ||
+          (
+            existing().ownerId == request.auth.uid &&
+            isNotSuspended() &&
+            incoming().moderationStatus == existing().moderationStatus &&
+            incoming().diff(existing()).affectedKeys().hasOnly(['title', 'description', 'thumbnailUrl', 'playbackUrl', 'hlsManifestUrl', 'captionsUrl', 'category', 'tags', 'language', 'visibility', 'processingStatus', 'ageRestricted', 'durationSec', 'updatedAt'])
+          ) ||
+          (
+            existing().moderationStatus == 'ACTIVE' &&
+            incoming().diff(existing()).affectedKeys().hasOnly(['viewCount', 'updatedAt'])
+          ) ||
+          (
+            isNotSuspended() &&
+            existing().moderationStatus == 'ACTIVE' &&
+            incoming().diff(existing()).affectedKeys().hasOnly(['likeCount', 'dislikeCount', 'updatedAt'])
+          ) ||
+          (
+            isNotSuspended() &&
+            existing().moderationStatus == 'ACTIVE' &&
+            incoming().diff(existing()).affectedKeys().hasOnly(['commentCount', 'updatedAt'])
+          )
+        );
+
+      allow delete: if isSignedIn() && isValidId(videoId) && (existing().ownerId == request.auth.uid || isAdmin());
+    }
+
+    // 5. Shorts
+    match /shorts/{shortId} {
+      allow get: if isSignedIn() && isValidId(shortId) && (
+        (existing().visibility in ['PUBLIC', 'UNLISTED'] && existing().moderationStatus == 'ACTIVE') ||
+        existing().ownerId == request.auth.uid ||
+        isAdmin()
+      );
+      allow list: if isSignedIn() && (
+        (resource.data.visibility == 'PUBLIC' && resource.data.moderationStatus == 'ACTIVE') ||
+        resource.data.ownerId == request.auth.uid ||
+        isAdmin()
+      );
+
+      allow create: if isSignedIn() &&
+        isValidId(shortId) &&
+        isValidShortVideo(incoming()) &&
+        isNotSuspended() &&
+        isUploadAllowed() &&
+        incoming().ownerId == request.auth.uid &&
+        incoming().moderationStatus == 'ACTIVE' &&
+        exists(/databases/$(database)/documents/channels/$(incoming().channelId)) &&
+        get(/databases/$(database)/documents/channels/$(incoming().channelId)).data.ownerId == request.auth.uid;
+
+      allow update: if isSignedIn() && isValidId(shortId) && isValidShortVideo(incoming()) &&
+        incoming().ownerId == existing().ownerId &&
+        incoming().createdAt == existing().createdAt && (
+          isAdmin() ||
+          (
+            existing().ownerId == request.auth.uid &&
+            isNotSuspended() &&
+            incoming().moderationStatus == existing().moderationStatus &&
+            incoming().diff(existing()).affectedKeys().hasOnly(['title', 'thumbnailUrl', 'visibility', 'language', 'updatedAt'])
+          ) ||
+          (
+            isNotSuspended() &&
+            existing().moderationStatus == 'ACTIVE' &&
+            incoming().diff(existing()).affectedKeys().hasOnly(['likeCount', 'viewCount', 'commentCount', 'updatedAt'])
+          )
+        );
+
+      allow delete: if isSignedIn() && isValidId(shortId) && (existing().ownerId == request.auth.uid || isAdmin());
+    }
+
+    // 6. Comments
+    match /comments/{commentId} {
+      allow get: if isSignedIn() && isValidId(commentId) && (
+        existing().moderationStatus == 'ACTIVE' ||
+        existing().authorId == request.auth.uid ||
+        existing().videoOwnerId == request.auth.uid ||
+        isAdmin()
+      );
+      allow list: if isSignedIn() && (
+        resource.data.moderationStatus == 'ACTIVE' ||
+        resource.data.authorId == request.auth.uid ||
+        resource.data.videoOwnerId == request.auth.uid ||
+        isAdmin()
+      );
+
+      allow create: if isSignedIn() &&
+        isValidId(commentId) &&
+        isValidComment(incoming()) &&
+        isNotSuspended() &&
+        incoming().authorId == request.auth.uid &&
+        incoming().moderationStatus == 'ACTIVE' &&
+        exists(/databases/$(database)/documents/videos/$(incoming().videoId));
+
+      allow update: if isSignedIn() && isValidId(commentId) && isValidComment(incoming()) &&
+        incoming().authorId == existing().authorId &&
+        incoming().videoId == existing().videoId &&
+        incoming().createdAt == existing().createdAt && (
+          isAdmin() ||
+          (
+            existing().authorId == request.auth.uid &&
+            isNotSuspended() &&
+            incoming().moderationStatus == existing().moderationStatus &&
+            incoming().diff(existing()).affectedKeys().hasOnly(['text', 'updatedAt'])
+          ) ||
+          (
+            existing().videoOwnerId == request.auth.uid &&
+            isNotSuspended() &&
+            incoming().diff(existing()).affectedKeys().hasOnly(['moderationStatus', 'updatedAt'])
+          )
+        );
+
+      allow delete: if isSignedIn() && isValidId(commentId) && (
+        existing().authorId == request.auth.uid ||
+        existing().videoOwnerId == request.auth.uid ||
+        isAdmin()
+      );
+    }
+
+    // 7. Likes (deterministic id: {videoId}_{userId})
+    match /likes/{likeId} {
+      allow get: if isSignedIn() && isValidId(likeId) && (existing().userId == request.auth.uid || isAdmin());
+      allow list: if isSignedIn() && resource.data.userId == request.auth.uid;
+
+      allow create: if isSignedIn() &&
+        isValidId(likeId) &&
+        isValidLike(incoming()) &&
+        isNotSuspended() &&
+        incoming().userId == request.auth.uid &&
+        likeId == (incoming().videoId + '_' + request.auth.uid);
+
+      allow update: if isSignedIn() &&
+        isValidId(likeId) &&
+        isValidLike(incoming()) &&
+        isNotSuspended() &&
+        existing().userId == request.auth.uid &&
+        incoming().userId == existing().userId &&
+        incoming().videoId == existing().videoId &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().diff(existing()).affectedKeys().hasOnly(['reaction', 'updatedAt']);
+
+      allow delete: if isSignedIn() && isValidId(likeId) && (existing().userId == request.auth.uid || isAdmin());
+    }
+
+    // 8. Subscriptions (deterministic id: {channelId}_{userId})
+    match /subscriptions/{subscriptionId} {
+      allow get: if isSignedIn() && isValidId(subscriptionId) && (
+        existing().subscriberId == request.auth.uid ||
+        existing().channelOwnerId == request.auth.uid ||
+        isAdmin()
+      );
+      allow list: if isSignedIn() && (
+        resource.data.subscriberId == request.auth.uid ||
+        resource.data.channelOwnerId == request.auth.uid ||
+        isAdmin()
+      );
+
+      allow create: if isSignedIn() &&
+        isValidId(subscriptionId) &&
+        isValidSubscription(incoming()) &&
+        isNotSuspended() &&
+        incoming().subscriberId == request.auth.uid &&
+        subscriptionId == (incoming().channelId + '_' + request.auth.uid) &&
+        exists(/databases/$(database)/documents/channels/$(incoming().channelId));
+
+      allow update: if isSignedIn() &&
+        isValidId(subscriptionId) &&
+        isValidSubscription(incoming()) &&
+        existing().subscriberId == request.auth.uid &&
+        incoming().subscriberId == existing().subscriberId &&
+        incoming().channelId == existing().channelId &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().diff(existing()).affectedKeys().hasOnly(['notificationsEnabled']);
+
+      allow delete: if isSignedIn() && isValidId(subscriptionId) && (existing().subscriberId == request.auth.uid || isAdmin());
+    }
+
+    // 9. Playlists
+    match /playlists/{playlistId} {
+      allow get: if isSignedIn() && isValidId(playlistId) && (
+        existing().ownerId == request.auth.uid ||
+        existing().visibility == 'PUBLIC' ||
+        isAdmin()
+      );
+      allow list: if isSignedIn() && (
+        resource.data.ownerId == request.auth.uid ||
+        resource.data.visibility == 'PUBLIC' ||
+        isAdmin()
+      );
+
+      allow create: if isSignedIn() &&
+        isValidId(playlistId) &&
+        isValidPlaylist(incoming()) &&
+        isNotSuspended() &&
+        incoming().ownerId == request.auth.uid;
+
+      allow update: if isSignedIn() &&
+        isValidId(playlistId) &&
+        isValidPlaylist(incoming()) &&
+        existing().ownerId == request.auth.uid &&
+        incoming().ownerId == existing().ownerId &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().diff(existing()).affectedKeys().hasOnly(['title', 'description', 'visibility', 'videoIds', 'updatedAt']);
+
+      allow delete: if isSignedIn() && isValidId(playlistId) && (existing().ownerId == request.auth.uid || isAdmin());
+    }
+
+    // 10. Watch History
+    match /watchHistory/{entryId} {
+      allow get: if isSignedIn() && isValidId(entryId) && (existing().userId == request.auth.uid || isAdmin());
+      allow list: if isSignedIn() && resource.data.userId == request.auth.uid;
+
+      allow create: if isSignedIn() &&
+        isValidId(entryId) &&
+        isValidWatchHistory(incoming()) &&
+        incoming().userId == request.auth.uid;
+
+      allow update: if isSignedIn() &&
+        isValidId(entryId) &&
+        isValidWatchHistory(incoming()) &&
+        existing().userId == request.auth.uid &&
+        incoming().userId == existing().userId &&
+        incoming().videoId == existing().videoId &&
+        incoming().diff(existing()).affectedKeys().hasOnly(['videoTitle', 'thumbnailUrl', 'channelName', 'progressSec', 'durationSec', 'watchedAt']);
+
+      allow delete: if isSignedIn() && isValidId(entryId) && (existing().userId == request.auth.uid || isAdmin());
+    }
+
+    // 11. Search History
+    match /searchHistory/{entryId} {
+      allow get: if isSignedIn() && isValidId(entryId) && existing().userId == request.auth.uid;
+      allow list: if isSignedIn() && resource.data.userId == request.auth.uid;
+
+      allow create: if isSignedIn() &&
+        isValidId(entryId) &&
+        isValidSearchHistory(incoming()) &&
+        incoming().userId == request.auth.uid;
+
+      allow update: if false;
+      allow delete: if isSignedIn() && isValidId(entryId) && existing().userId == request.auth.uid;
+    }
+
+    // 12. Notifications
+    match /notifications/{notificationId} {
+      allow get: if isSignedIn() && isValidId(notificationId) && (existing().userId == request.auth.uid || isAdmin());
+      allow list: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+
+      allow create: if isSignedIn() &&
+        isValidId(notificationId) &&
+        isValidNotification(incoming()) &&
+        (isAdmin() || incoming().userId == request.auth.uid);
+
+      allow update: if isSignedIn() &&
+        isValidId(notificationId) &&
+        isValidNotification(incoming()) &&
+        existing().userId == request.auth.uid &&
+        incoming().userId == existing().userId &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().diff(existing()).affectedKeys().hasOnly(['readFlag']);
+
+      allow delete: if isSignedIn() && isValidId(notificationId) && (existing().userId == request.auth.uid || isAdmin());
+    }
+
+    // 13. Reports & Copyright / Appeals
+    match /reports/{reportId} {
+      allow get: if isSignedIn() && isValidId(reportId) && (existing().reporterId == request.auth.uid || isAdmin());
+      allow list: if isSignedIn() && (resource.data.reporterId == request.auth.uid || isAdmin());
+
+      allow create: if isSignedIn() &&
+        isValidId(reportId) &&
+        isValidReport(incoming()) &&
+        incoming().reporterId == request.auth.uid &&
+        incoming().status == 'OPEN';
+
+      allow update: if isSignedIn() && isValidId(reportId) && isValidReport(incoming()) &&
+        isAdmin() &&
+        incoming().reporterId == existing().reporterId &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().diff(existing()).affectedKeys().hasOnly(['status', 'resolutionNote', 'resolvedBy', 'updatedAt']);
+
+      allow delete: if false;
+    }
+
+    // 14. Moderation Actions (Immutable, Admin-only)
+    match /moderationActions/{actionId} {
+      allow get: if isValidId(actionId) && isAdmin();
+      allow list: if isAdmin();
+      allow create: if isValidId(actionId) && isAdmin() && isValidModerationAction(incoming()) && incoming().adminUid == request.auth.uid;
+      allow update, delete: if false;
+    }
+
+    // 15. Audit Logs (Immutable, Admin-read)
+    match /auditLogs/{logId} {
+      allow get: if isValidId(logId) && isAdmin();
+      allow list: if isAdmin();
+      allow create: if isSignedIn() &&
+        isValidId(logId) &&
+        isValidAuditLog(incoming()) && (
+          isAdmin() ||
+          (
+            incoming().actorUid == request.auth.uid &&
+            incoming().action in ['REGISTER', 'SIGN_IN', 'CREATE_CHANNEL', 'UPLOAD_VIDEO', 'DELETE_VIDEO', 'REPORT_SUBMITTED']
+          )
+        );
+      allow update, delete: if false;
+    }
+
+    // 16. Platform Settings
+    match /platformSettings/{settingId} {
+      allow get: if isSignedIn() && isValidId(settingId);
+      allow list: if isSignedIn();
+      allow create, update: if isValidId(settingId) && isAdmin() && isValidPlatformSettings(incoming());
+      allow delete: if false;
+    }
+
+    // 17. Video Processing Jobs
+    match /videoProcessingJobs/{jobId} {
+      allow get: if isSignedIn() && isValidId(jobId) && (existing().ownerId == request.auth.uid || isAdmin());
+      allow list: if isSignedIn() && (resource.data.ownerId == request.auth.uid || isAdmin());
+
+      allow create: if isSignedIn() &&
+        isValidId(jobId) &&
+        isValidProcessingJob(incoming()) &&
+        isNotSuspended() &&
+        incoming().ownerId == request.auth.uid;
+
+      allow update: if isSignedIn() && isValidId(jobId) && isValidProcessingJob(incoming()) &&
+        incoming().ownerId == existing().ownerId &&
+        incoming().videoId == existing().videoId &&
+        incoming().createdAt == existing().createdAt && (
+          isAdmin() ||
+          (
+            existing().ownerId == request.auth.uid &&
+            incoming().diff(existing()).affectedKeys().hasOnly(['outputManifestPath', 'status', 'progressPercent', 'errorMessage', 'updatedAt'])
+          )
+        );
+
+      allow delete: if isAdmin();
+    }
+
+    // 18. Blocked Users
+    match /blockedUsers/{blockId} {
+      allow get: if isSignedIn() && isValidId(blockId) && existing().blockerId == request.auth.uid;
+      allow list: if isSignedIn() && resource.data.blockerId == request.auth.uid;
+
+      allow create: if isSignedIn() &&
+        isValidId(blockId) &&
+        isValidBlockedUser(incoming()) &&
+        incoming().blockerId == request.auth.uid &&
+        blockId == (request.auth.uid + '_' + incoming().blockedUserId);
+
+      allow update: if false;
+      allow delete: if isSignedIn() && isValidId(blockId) && existing().blockerId == request.auth.uid;
+    }
+
+    // 19. App Releases (Published APK distribution metadata; admin write, signed-in read)
+    match /appReleases/{releaseId} {
+      allow get, list: if isSignedIn() && isValidId(releaseId);
+      allow create, update: if isValidId(releaseId) && isAdmin() && isValidAppRelease(incoming());
+      allow delete: if isAdmin();
+    }
+  }
+}

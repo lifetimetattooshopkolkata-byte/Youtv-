@@ -1,0 +1,6 @@
+{
+  "name": "YouTV",
+  "description": "Watch, create, and share videos on YouTV with the private ADMIT owner administration suite.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
